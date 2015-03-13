@@ -11,8 +11,9 @@ public class CannonGame extends World {
 	private static final double SPEED = .5;
 	private static final int HEIGHT = 768;
 	private static final int WIDTH = 768;
-	private static final int NUM_SLOTS = 12;
+	public static final int NUM_SLOTS = 12;
 	public static int slotLength = 64;
+	public static int score = 0;
 	private Grid grid;
 
 	public static void main(String[] args) {
@@ -27,7 +28,7 @@ public class CannonGame extends World {
 
 	@Override
 	public World onTick() {
-		return this;
+		return new CannonGame(this.grid.onTick());
 	}
 
 	@Override
@@ -72,10 +73,12 @@ public class CannonGame extends World {
 		List<Posn> obstacles = new ArrayList<Posn>();
 		obstacles.add(Utility.fromCoordinateToUpperLeftPosn(1, 1));
 		obstacles.add(Utility.fromCoordinateToUpperLeftPosn(0,0));
-		obstacles.add(Utility.fromCoordinateToUpperLeftPosn(7,7));
+		obstacles.add(Utility.fromCoordinateToUpperLeftPosn(11,7));
 		List<Cannon> cannons = new ArrayList<Cannon>();
+		//cannons.add(new Cannon())
 		LinkedList<Arrow> arrows = new LinkedList<Arrow>();
 		List<Part> parts = new ArrayList<Part>();
+		parts.add(new Part(PartType.WATER,Utility.fromCoordinateToUpperLeftPosn(1,3),Direction.RIGHT));
 		return new Grid(obstacles, cannons, arrows, parts, ClickType.ERASE);
 	}
 }
@@ -113,26 +116,26 @@ class Grid {
 	//Mirroring world functions
 	public Grid onTick() {
 
+		List<Part> newParts = new ArrayList<Part>();
 		Arrow arrow;
+		Part temp;
 		//here we see where the parts want to go, check if they're movable
 		for (Part p : this.parts) {
 			arrow = onArrow(p);
-			if (arrow.direction == Direction.NULL) {
-
-				p = new Part(p.type, p.pos, arrow.direction);
-			}
-			if (obstacleCollision(p)) {
+			if (arrow.direction != Direction.NULL) {
+				temp = new Part(p.type, nextPosn(p.pos, arrow.direction), arrow.direction);
+			} else if (obstacleCollision(p) || offBoard(p)) {
 				Direction d = findNextValidDirection(p);
 				Posn pos = nextPosn(p.pos, d);
-
-				//will the below change this.parts? do i need to just build
-				//an entirely new list?
-				p = new Part(p.type, pos, findNextValidDirection(p));
+				temp = new Part(p.type, pos, d);
+			} else {
+				temp = new Part(p.type, nextPosn(p.pos, p.direction), p.direction);
 			}
+			newParts.add(temp);
 		}
 
 		//to be changed
-		return this;
+		return new Grid(this.obstacles, this.cannons, this.arrows, newParts, this.clickType);
 	}
 	public WorldImage makeImage() {
 		WorldImage img = makeObstacleImage(obstacles);
@@ -148,6 +151,7 @@ class Grid {
 		LinkedList<Arrow> copy = new LinkedList<Arrow>();
 		copy.addAll(arrows);
 		ArrayList<Integer> toRemove = new ArrayList<Integer>();
+		
 
 		//if clickType is erase, then remove the posn that's there
 		if (this.clickType == ClickType.ERASE) {
@@ -159,13 +163,23 @@ class Grid {
 		} else if (obstacleCollision(p)){
 			//if in invalid location, do nothing
 			return this;
-		} else {
-			//add new arrow
+		} else if (onArrow(p).direction == Direction.NULL) {
 			Direction d = clickTypeToDirection(this.clickType);
+			//add new arrow
 			copy.add(new Arrow(p, d));
 			if (arrows.size() > 4) {
 				copy.removeFirst();
 			}
+		} else {
+			Direction d = clickTypeToDirection(this.clickType);
+			Iterator<Arrow> iter = copy.iterator();
+			while (iter.hasNext()) {
+				Arrow a = iter.next();
+				if (posnEquals(a.pos, onArrow(p).pos)) {
+					iter.remove();
+				}
+			}
+			copy.add(new Arrow(p, d));
 		}
 
 		//so pure
@@ -219,15 +233,53 @@ class Grid {
 		}
 		return false;
 	}
+	public Boolean offBoard(Part p) {
+		Posn nextPosn = nextPosn(p.pos, p.direction);
+
+		return (nextPosn.x <= 0 || nextPosn.x >= (CannonGame.NUM_SLOTS)*64 ||
+			nextPosn.y <= 0 || nextPosn.y >= (CannonGame.NUM_SLOTS)*64) ;
+	}
 	public Direction findNextValidDirection(Part p) {
-		return Direction.UP;
+		Part newP = new Part(p.type, p.pos, Utility.getNextDirection(p.direction));
+		int numDirections = 4;
+		for (int i = 0; i < numDirections; i++) {
+			if (obstacleCollision(newP)) {
+				newP = new Part(p.type, p.pos, Utility.getNextDirection(newP.direction));
+			}
+		}
+		return newP.direction;
 	}
 	public Posn nextPosn(Posn p, Direction d) {
-		return new Posn(0, 0);
+		int dx;
+		int dy;
+		if (d == Direction.UP) {
+			dx = 0;
+			dy = -64;
+		} else if (d == Direction.LEFT) {
+			dx = -64;
+			dy = 0;
+		} else if (d == Direction.DOWN) {
+			dx = 0;
+			dy = 64;
+		} else if (d == Direction.RIGHT) {
+			dx = 64;
+			dy = 0;
+		} else {
+			throw new RuntimeException("invalid Direction input");
+		}
+		return new Posn(p.x + dx, p.y + dy);
 	}
 	public Arrow onArrow(Part p) {
 		for (Arrow a : this.arrows) {
 			if (posnEquals(a.pos, p.pos)) {
+				return a;
+			}
+		}
+		return new Arrow(new Posn(0,0), Direction.NULL);
+	}
+	public Arrow onArrow(Posn p) {
+		for (Arrow a : this.arrows) {
+			if (posnEquals(a.pos, p)) {
 				return a;
 			}
 		}
@@ -298,13 +350,53 @@ class Grid {
 		}
 	}
 
+	public Boolean isValidObstacle(Posn obs) {
+		for (Cannon c : this.cannons) {
+			if (posnEquals(obs, nextPosn(c.entrance, Utility.getOppositeDirection(c.entranceDirection)))) {
+				return false;
+			}
+			for (Posn p : c.barrel) {
+				if (posnEquals(obs, p)) {
+					return false;
+				}
+			}
+		}
+		for (Posn p : this.obstacles) {
+			if (posnEquals(p, obs)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	public Posn getRandomEmptyPosn() {
+		int randx = (int)Math.floor(Math.random()*CannonGame.NUM_SLOTS);
+		int randy = (int)Math.floor(Math.random()*CannonGame.NUM_SLOTS);
+		Posn pos = Utility.fromCoordinateToUpperLeftPosn(randx, randy);
+		if (isValidObstacle(pos)) {
+			for (Part p : this.parts) {
+				if (posnEquals(pos, p.pos)) {
+					return getRandomEmptyPosn();
+				}
+			}
+			return pos;
+		} else {
+			return getRandomEmptyPosn();
+		}
+	}
 }
 
 class Cannon {
 	public Posn entrance;
+	//the direction the cannon should be entered from (inward)
 	public Direction entranceDirection;
 	public List<Posn> barrel;
-
+	public Cannon(Posn entrance, Direction entranceDirection, List<Posn> barrel) {
+		this.entrance = entrance;
+		this.entranceDirection = entranceDirection;
+		this.barrel = barrel;
+	}
 	public WorldImage makeImage() {
 		int radius = 100;
 		return new FromFileImage(entrance, "img/cannon-entrance.png");
@@ -384,5 +476,32 @@ class Utility {
 		int newX = x*CannonGame.slotLength + (int)Math.ceil(.5*CannonGame.slotLength);
 		int newY = y*CannonGame.slotLength + (int)Math.ceil(.5*CannonGame.slotLength);
 		return new Posn(newX, newY);
+	}
+
+	public static Direction getOppositeDirection(Direction d) {
+		if (d == Direction.UP) {
+			return Direction.DOWN;
+		} else if (d == Direction.DOWN) {
+			return Direction.UP;
+		} else if (d == Direction.RIGHT) {
+			return Direction.LEFT;
+		} else if (d == Direction.LEFT) {
+			return Direction.RIGHT;
+		} else {
+			return d;
+		}
+	}
+	public static Direction getNextDirection(Direction d) {
+		if (d == Direction.UP) {
+			return Direction.RIGHT;
+		} else if (d == Direction.DOWN) {
+			return Direction.LEFT;
+		} else if (d == Direction.RIGHT) {
+			return Direction.DOWN;
+		} else if (d == Direction.LEFT) {
+			return Direction.UP;
+		} else {
+			return d;
+		}
 	}
 }
