@@ -75,11 +75,21 @@ public class CannonGame extends World {
 		obstacles.add(Utility.fromCoordinateToUpperLeftPosn(0,0));
 		obstacles.add(Utility.fromCoordinateToUpperLeftPosn(11,7));
 		List<Cannon> cannons = new ArrayList<Cannon>();
-		//cannons.add(new Cannon())
+		cannons.add(makeCannon(Utility.fromCoordinateToUpperLeftPosn(5,5), Direction.RIGHT));
 		LinkedList<Arrow> arrows = new LinkedList<Arrow>();
 		List<Part> parts = new ArrayList<Part>();
 		parts.add(new Part(PartType.WATER,Utility.fromCoordinateToUpperLeftPosn(1,3),Direction.RIGHT));
+		parts.add(new Part(PartType.CANNON,Utility.fromCoordinateToUpperLeftPosn(6,3),Direction.RIGHT));
 		return new Grid(obstacles, cannons, arrows, parts, ClickType.ERASE);
+	}
+
+	public static Cannon makeCannon(Posn p, Direction d) {
+		List<Posn> barrel = new ArrayList<Posn>();
+		Posn n = Grid.nextPosn(p, d);
+		barrel.add(n);
+		barrel.add(Grid.nextPosn(n, d));
+		Cannon c = new Cannon(p, d, barrel);
+		return c;
 	}
 }
 
@@ -119,23 +129,73 @@ class Grid {
 		List<Part> newParts = new ArrayList<Part>();
 		Arrow arrow;
 		Part temp;
+		List<Cannon> newCannons = new ArrayList<Cannon>();
+
 		//here we see where the parts want to go, check if they're movable
 		for (Part p : this.parts) {
+
 			arrow = onArrow(p);
 			if (arrow.direction != Direction.NULL) {
+				//If on arrow, then change derction of part
 				temp = new Part(p.type, nextPosn(p.pos, arrow.direction), arrow.direction);
+				newParts.add(temp);
+				newCannons.addAll(this.cannons);
 			} else if (obstacleCollision(p) || offBoard(p)) {
+				//if collision, turn part
 				Direction d = findNextValidDirection(p);
 				Posn pos = nextPosn(p.pos, d);
 				temp = new Part(p.type, pos, d);
+				newParts.add(temp);
+				newCannons.addAll(this.cannons);
+			} else if (cannonEntrance(p).entranceDirection != Direction.NULL) {
+				//if entering the cannon
+				Cannon cannon = cannonEntrance(p);
+				cannon.insertPart(p);
+				//don't add temp to newParts, now the cannon owns this
+				for (Cannon c : this.cannons) {
+					if (posnEquals(c.entrance, cannon.entrance)) {
+						newCannons.add(cannon);
+						//System.out.println("just added new cannons in before: " + newCannons.size());
+					} else {
+						newCannons.add(c);
+					}
+				}
 			} else {
 				temp = new Part(p.type, nextPosn(p.pos, p.direction), p.direction);
+				newParts.add(temp);
+				newCannons.addAll(this.cannons);
 			}
-			newParts.add(temp);
 		}
 
+		if (this.parts.size() == 0) {
+			newCannons.addAll(this.cannons);
+		}
+
+		Iterator<Part> iter = newParts.iterator();
+		Iterator<Cannon> iter2;
+		while (iter.hasNext()) {
+			temp = iter.next();
+			if (isOnCannonEntrance(temp).entranceDirection != Direction.NULL) {
+				//if entering the cannon
+				//System.out.println("CANNONENTRANCE - AFTER");
+				Cannon cannon = cannonEntrance(temp);
+				cannon.insertPart(temp);
+				//don't add temp to newParts, now the cannon owns this
+				for (Cannon c : this.cannons) {
+					if (posnEquals(c.entrance, cannon.entrance)) {
+						removeFromCannons(c.entrance, newCannons);
+						newCannons.add(cannon);
+						//System.out.println("just added new cannon: " + newCannons.size());
+					}
+				}
+				iter.remove();
+				//System.out.println("just removed current part:" + newCannons.size());
+			}
+		}
+		//System.out.println("regular it, right before return: " + newCannons.size());
+
 		//to be changed
-		return new Grid(this.obstacles, this.cannons, this.arrows, newParts, this.clickType);
+		return new Grid(this.obstacles, newCannons, this.arrows, newParts, this.clickType);
 	}
 	public WorldImage makeImage() {
 		WorldImage img = makeObstacleImage(obstacles);
@@ -233,6 +293,16 @@ class Grid {
 		}
 		return false;
 	}
+	public void removeFromCannons(Posn p, List<Cannon> cannons) {
+		Iterator<Cannon> iter = cannons.iterator();
+		Cannon current;
+		while (iter.hasNext()) {
+			current = iter.next();
+			if (posnEquals(current.entrance, p)) {
+				iter.remove();
+			}
+		}
+	}
 	public Boolean offBoard(Part p) {
 		Posn nextPosn = nextPosn(p.pos, p.direction);
 
@@ -249,7 +319,7 @@ class Grid {
 		}
 		return newP.direction;
 	}
-	public Posn nextPosn(Posn p, Direction d) {
+	public static Posn nextPosn(Posn p, Direction d) {
 		int dx;
 		int dy;
 		if (d == Direction.UP) {
@@ -265,7 +335,7 @@ class Grid {
 			dx = 64;
 			dy = 0;
 		} else {
-			throw new RuntimeException("invalid Direction input");
+			return p;
 		}
 		return new Posn(p.x + dx, p.y + dy);
 	}
@@ -284,6 +354,32 @@ class Grid {
 			}
 		}
 		return new Arrow(new Posn(0,0), Direction.NULL);
+	}
+	public Cannon cannonEntrance(Part p) {
+		Direction d = p.direction;
+		for (Cannon c : this.cannons) {
+				//System.out.println(c.entrance);
+				//System.out.println(p.pos);
+			if (posnEquals(nextPosn(p.pos, p.direction), c.entrance)) {
+				//System.out.println("TRUE");
+				return c;
+			}
+		}
+		List<Posn> list = new ArrayList<Posn>();
+		return new Cannon(new Posn(0,0), Direction.NULL, list);
+	}
+	public Cannon isOnCannonEntrance(Part p) {
+		Direction d = p.direction;
+		for (Cannon c : this.cannons) {
+				//System.out.println(c.entrance);
+				//System.out.println(p.pos);
+			if (posnEquals(p.pos, c.entrance)) {
+				//System.out.println("TRUE");
+				return c;
+			}
+		}
+		List<Posn> list = new ArrayList<Posn>();
+		return new Cannon(new Posn(0,0), Direction.NULL, list);
 	}
 	public Boolean posnEquals(Posn p1, Posn p2) {
 		return (p1.x == p2.x && p1.y == p2.y);
@@ -392,14 +488,76 @@ class Cannon {
 	//the direction the cannon should be entered from (inward)
 	public Direction entranceDirection;
 	public List<Posn> barrel;
+	public Stack<Part> contents;
+	public Boolean full;
 	public Cannon(Posn entrance, Direction entranceDirection, List<Posn> barrel) {
 		this.entrance = entrance;
 		this.entranceDirection = entranceDirection;
 		this.barrel = barrel;
+		this.contents = new Stack<Part>();
 	}
 	public WorldImage makeImage() {
 		int radius = 100;
-		return new FromFileImage(entrance, "img/cannon-entrance.png");
+		return new FromFileImage(entrance, "img/cannon-entrance.png").overlayImages(
+				makeContentsImage(),
+				new FromFileImage(barrel.get(0), "img/cannon-entrance.png"),
+				new FromFileImage(barrel.get(1), getImagePath(barrel.get(1)))
+			);
+	}
+
+	public String getImagePath(Posn barrel) {
+		if (this.entranceDirection == Direction.RIGHT) {
+			return "img/cannon-end-right.png";
+		} else {
+			return "img/cannon-end-left.png";
+		}
+	}
+
+	public WorldImage makeContentsImage() {
+		//System.out.println(this.contents.size());
+		Stack<Part> copy = new Stack<Part>();
+		copy.addAll(contents);
+		WorldImage img = new CircleImage(new Posn(0,0), 0, new Blue());
+		while (copy.size() > 0) {
+			img.overlayImages(copy.pop().makeImage());
+		}
+		return img;
+	}
+
+	public Posn insertPart(Part p) {
+		Part newPart = new Part(p.type, p.pos, Direction.NULL);
+		if (p.type == PartType.WATER) {
+			this.contents = new Stack<Part>();
+			this.full = (this.contents.size() > 2);
+		} else {
+			this.full = (this.contents.size() + 1 > 2);
+			switch (this.contents.size()) {
+				case 0:
+					throw new RuntimeException("weird");
+				case 1:
+					newPart = new Part(p.type, barrel.get(1), Direction.NULL);
+					return barrel.get(1);
+				case 2:
+					newPart = new Part(p.type, barrel.get(0), Direction.NULL);
+					return barrel.get(0);
+				case 3:
+					newPart = new Part(p.type, this.entrance, Direction.NULL);
+					return this.entrance;
+			}
+			this.contents.push(newPart);
+		}
+		return new Posn(0,0);
+	}
+
+	public Boolean isFull() {
+		return this.full;
+	}
+
+	public Boolean isCorrect() {
+		Stack<Part> copy = new Stack<Part>();
+		copy.addAll(this.contents);
+		return (copy.pop().type == PartType.CANNON && copy.pop().type == PartType.CLOTH
+			&& copy.pop().type == PartType.GUNPOWDER);
 	}
 }
 class Part {
@@ -422,7 +580,7 @@ class Part {
 		if (this.type == PartType.WATER) {
 			return "img/water.png";
 		} else if (this.type == PartType.CANNON) {
-			return "img/cannonball.img";
+			return "img/cannonball.png";
 		} else if (this.type == PartType.CLOTH) {
 			return "img/cloth.png";
 		} else if (this.type == PartType.GUNPOWDER) {
@@ -504,4 +662,13 @@ class Utility {
 			return d;
 		}
 	}
+
+	/*public static List<T implements Posnable> removeByPosn(List<T implements Posna> list, Posn p) {
+		Iterator<T> iter = list.iterator() 
+		T current;
+		while (iter.hasNext()) {
+			current = list.next();
+			if (current)
+		}
+	}*/
 }
