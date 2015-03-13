@@ -1,9 +1,11 @@
 Game Manual - game1
 
-The name of the game is Cannons. (It is based on the "Gunnery" game from the Puzzle Pirates MMORPG).
+The name of the game is Cannon. (It is [almost] based on the "Gunnery" game from the Puzzle Pirates MMORPG).
 
-Cannons is a game in which the player's goal is to fill four cannons, located near the four corners of the board. Cannons must be filled with, in order, a bag of gunpowder, then cloth, then a cannonball. These components, along with miscellaneous junk parts, are strewn, slowly moving, around the deck. When components collide with a surface head on, they "turn" clockwise to the next moveable movable direction from up, down, left, and right.
+Cannons is a game in which the player's goal is to fill the cannon with stuff! Just don't let the water in. Stuff can get into the cannon's entrance from any direction. The more stuff you let in, the bigger the score. And do it quick! Otherwise your score will decrease.
 
-The player can control parts by selecting one of four directions with the arrow keys and then clicking on the grid spot they want to place the arrow. Whenever a part hits an arrow, its direction becomes that of the arrow until it hits another arrow, the entrance to a cannon, or collides.
+Control the stuff by making arrows. You can have up to five arrows, which you produce by clicking where you want 'em. Hectic fun! Control the type of arrow by pushing the arrow keys or WASD before clicking. If you want to erase an arrow, hit x and then click.
 
-If a player incorrectly fills a cannon, they can wash it out with a bucket of water (another of the parts on the deck) to make the cannon empty. 
+Hit q to end the game.
+
+Whenever stuff gets in the cannon, another random stuff appears at a valid location on the screen! 

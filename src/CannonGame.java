@@ -14,10 +14,14 @@ public class CannonGame extends World {
 	public static final int NUM_SLOTS = 12;
 	public static int slotLength = 64;
 	public static int score = 0;
+	public static int ticks = 0;
+	public static String systemMessage = "";
 	private Grid grid;
 
 	public static void main(String[] args) {
 		CannonGame game = new CannonGame(CannonGame.generateGrid());
+		Tester tester = new Tester();
+		tester.runTests();
 		game.bigBang(WIDTH, HEIGHT, SPEED);
 	}
 
@@ -28,12 +32,17 @@ public class CannonGame extends World {
 
 	@Override
 	public World onTick() {
+		CannonGame.score--;
+		CannonGame.systemMessage = "-1";
+		//System.out.println("Score is: " + CannonGame.score);
 		return new CannonGame(this.grid.onTick());
 	}
 
 	@Override
 	public World onKeyEvent(String ke) {
-		return new CannonGame(this.grid.onKeyEvent(ke));
+		if (ke.equals("q")) {
+			return endOfWorld("Your final score was: " + CannonGame.score + "\nThanks for playing!");
+		} else return new CannonGame(this.grid.onKeyEvent(ke));
 	}
 
 	@Override
@@ -43,7 +52,12 @@ public class CannonGame extends World {
 
 	@Override
 	public WorldImage makeImage() {
-		return this.grid.makeImage();
+		return this.grid.makeImage().overlayImages(new TextImage(new Posn(70, HEIGHT - 20), "Score: " + CannonGame.score, new Blue()),
+			new TextImage(new Posn(93, HEIGHT - 35), CannonGame.systemMessage, new Red()));
+	}
+
+	public WorldImage lastImage(String s) {
+		return new TextImage(new Posn(HEIGHT/2, WIDTH/2), s, new Blue());
 	}
 
 	//experimenting with music
@@ -71,9 +85,9 @@ public class CannonGame extends World {
 	public static Grid generateGrid() {
 		int width = CannonGame.slotLength;
 		List<Posn> obstacles = new ArrayList<Posn>();
-		obstacles.add(Utility.fromCoordinateToUpperLeftPosn(1, 1));
-		obstacles.add(Utility.fromCoordinateToUpperLeftPosn(0,0));
-		obstacles.add(Utility.fromCoordinateToUpperLeftPosn(11,7));
+		//obstacles.add(Utility.fromCoordinateToUpperLeftPosn(1, 1));
+		//obstacles.add(Utility.fromCoordinateToUpperLeftPosn(0,0));
+		//obstacles.add(Utility.fromCoordinateToUpperLeftPosn(11,7));
 		List<Cannon> cannons = new ArrayList<Cannon>();
 		cannons.add(makeCannon(Utility.fromCoordinateToUpperLeftPosn(5,5), Direction.RIGHT));
 		LinkedList<Arrow> arrows = new LinkedList<Arrow>();
@@ -82,7 +96,7 @@ public class CannonGame extends World {
 		//parts.add(new Part(PartType.WATER,Utility.fromCoordinateToUpperLeftPosn(1,3),Direction.RIGHT));
 		//parts.add(new Part(PartType.CANNON,Utility.fromCoordinateToUpperLeftPosn(6,3),Direction.RIGHT));
 		Grid g = new Grid(obstacles, cannons, arrows, parts, ClickType.ERASE);
-		for (int i = 0; i < 6; i++) {
+		for (int i = 0; i < 22; i++) {
 			obstacles.add(g.getRandomEmptyPosn());
 		}
 		for (int i = 0; i < 3; i++) {
@@ -91,6 +105,10 @@ public class CannonGame extends World {
 		}
 		for (int i = 0; i < 3; i++) {
 			parts.add(new Part(PartType.CLOTH, g.getRandomEmptyPosn(), Direction.DOWN));
+			g = new Grid(obstacles, cannons, arrows, parts, ClickType.ERASE);
+		}
+		for (int i = 0; i < 4; i++) {
+			parts.add(new Part(PartType.WATER, g.getRandomEmptyPosn(), Direction.DOWN));
 			g = new Grid(obstacles, cannons, arrows, parts, ClickType.ERASE);
 		}
 		for (int i = 0; i < 3; i++) {
@@ -154,9 +172,9 @@ class Grid {
 				//If on arrow, then change derction of part
 				temp = new Part(p.type, nextPosn(p.pos, arrow.direction), arrow.direction);
 				newParts.add(temp);
-			} else if (obstacleCollision(p) || offBoard(p) || 
+			} else if (obstacleCollision(p) || offBoard(p)/* || 
 				(cannonEntrance(p, this.cannons).isFull() && cannonEntrance(p, this.cannons).entranceDirection != Direction.NULL) ||
-				partCollision(p)) {
+				partCollision(p)*/) {
 				//if collision, turn part
 				Direction d = findNextValidDirection(p);
 				Posn pos = nextPosn(p.pos, d);
@@ -166,6 +184,7 @@ class Grid {
 				//if entering the cannon
 				Cannon cannon = cannonEntrance(p, this.cannons);
 				cannon.insertPart(p);
+				newParts.add(new Part(p.type, this.getRandomEmptyPosn(), Direction.DOWN));
 				List<Cannon> oldCannons = newCannons;
 				newCannons = new ArrayList<Cannon>();
 				//don't add temp to newParts, now the cannon owns this
@@ -187,6 +206,7 @@ class Grid {
 		}
 
 		Iterator<Part> iter = newParts.iterator();
+		ArrayList<Part> toAdd = new ArrayList<Part>();
 		while (iter.hasNext()) {
 			temp = iter.next();
 			if (isOnCannonEntrance(temp, newCannons).entranceDirection != Direction.NULL) {
@@ -194,6 +214,7 @@ class Grid {
 				////System.out.println("CANNONENTRANCE - AFTER");
 				Cannon cannon = isOnCannonEntrance(temp, newCannons);
 				cannon.insertPart(temp);
+				toAdd.add(temp);
 				//System.out.println(cannon.entrance.x + " " + cannon.entrance.y);
 				//don't add temp to newParts, now the cannon owns this
 				for (Cannon c : newCannons) {
@@ -210,7 +231,9 @@ class Grid {
 			}
 		}
 		////System.out.println("regular it, right before return: " + newCannons.size());
-
+		for (int i = 0; i < toAdd.size(); i++) {
+			newParts.add(new Part(toAdd.get(i).type, this.getRandomEmptyPosn(), Direction.DOWN));
+		}
 		//to be changed
 		return new Grid(this.obstacles, newCannons, this.arrows, newParts, this.clickType);
 	}
@@ -487,7 +510,8 @@ class Grid {
 
 	public Boolean isValidObstacle(Posn obs) {
 		for (Cannon c : this.cannons) {
-			if (posnEquals(obs, nextPosn(c.entrance, Utility.getOppositeDirection(c.entranceDirection)))) {
+			if (posnEquals(obs, nextPosn(c.entrance, Utility.getOppositeDirection(c.entranceDirection))) || 
+				posnEquals(obs, c.entrance)) {
 				return false;
 			}
 			for (Posn p : c.barrel) {
@@ -556,7 +580,7 @@ class Cannon {
 	}
 
 	public WorldImage makeContentsImage() {
-		System.out.println(this.contents.size());
+		//System.out.println(this.contents.size());
 		Stack<Part> copy = new Stack<Part>();
 		copy.addAll(this.contents);
 		WorldImage img = new CircleImage(new Posn(0,0), 0, new Blue());
@@ -569,7 +593,7 @@ class Cannon {
 	public Cannon insertPart(Part p) {
 		//System.out.println("INSERTING");
 		//System.out.println("Num elements before: " + this.contents.size());
-		Part newPart = new Part(p.type, p.pos, Direction.NULL);
+		/*Part newPart = new Part(p.type, p.pos, Direction.NULL);
 		if (p.type == PartType.WATER) {
 			this.contents = new Stack<Part>();
 			this.full = (this.contents.size() > 2);
@@ -590,7 +614,16 @@ class Cannon {
 			}
 			this.contents.push(newPart);
 		}
-		//System.out.println("Num elements after: " + this.contents.size());
+		//System.out.println("Num elements after: " + this.contents.size());*/
+		if (p.type == PartType.WATER) {
+			//System.out.println("WATER! -50 to your score.");
+			CannonGame.systemMessage = "Water! -50";
+			CannonGame.score = CannonGame.score - 50;
+		} else {
+			CannonGame.score = CannonGame.score + 20;
+			CannonGame.systemMessage = "Nice! +20";
+		}
+		this.contents.add(p);
 		return new Cannon(this.entrance, this.entranceDirection, this.barrel, this.contents);
 	}
 
@@ -716,4 +749,14 @@ class Utility {
 			if (current)
 		}
 	}*/
+}
+
+class Tester {
+	public Tester(){}
+
+	public void runTests() {
+		System.out.println("Running isItAGame()...");
+		System.out.println("It's definitely a game.");
+
+	}
 }
