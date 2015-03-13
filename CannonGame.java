@@ -44,7 +44,7 @@ public class CannonGame extends World {
 
 	@Override
 	public WorldImage makeImage() {
-		return new FrameImage(new Posn(100, 100), 100, 300, java.awt.Color.RED);
+		return this.grid.makeImage();
 	}
 
 	//experimenting with music
@@ -70,8 +70,9 @@ public class CannonGame extends World {
 	//just make a super simple grid, for now
 	public static Grid generateGrid() {
 		List<Posn> obstacles = new ArrayList<Posn>();
-		obstacles.add(new Posn(0,0));
-		obstacles.add(new Posn(1,1));
+		obstacles = bstacles.add(new Posn(0,0));
+		obstacles = obstacles.add(new Posn(1,1));
+		obstacles. = obstacles.add(new Posn(4,4));
 		List<Cannon> cannons = new ArrayList<Cannon>();
 		Queue<Arrow> arrows = new LinkedList<Arrow>();
 		List<Part> parts = new ArrayList<Part>();
@@ -130,10 +131,35 @@ class Grid {
 		return this;
 	}
 	public WorldImage makeImage(int scale) {
-		return new FrameImage(new Posn(100, 100), 100, 300, java.awt.Color.RED);
+		System.out.println("make image");
+		return new OverlayImages(
+				makeObstacleImage(obstacles),
+				makeCannonImage(cannons),
+				makeArrowImage(arrows),
+				makePartImage(parts)
+			);
 	}
 	public Grid onMouseClicked(Posn p, ClickType clickType) {
-		return this;
+		//for purity
+		Queue<Arrow> copy = new ArrayList<Arrow>();
+		copy.addAll(arrows);
+
+		//if clickType is erase, then remove the posn that's there
+		if (clickType == ClickType.ERASE) {
+			for (int i = 0; i < arrows.size(); i++) {
+				if (posnEquals(arrows.get(i).Posn, p)) {
+					copy.remove(i);
+				}
+			}
+
+		//else add a new arrow
+		} else {
+			Direction d = clickTypeToDirection(clickType);
+			copy.enqueue(new Arrow(p, d));
+		}
+
+		//so pure
+		return new Grid(this.obstacles, this.cannons, copy, this.parts);
 	}
 
 	//Functions to process Part p in terms of Grid context
@@ -170,6 +196,58 @@ class Grid {
 	public Boolean posnEquals(Posn p1, Posn p2) {
 		return (p1.x == p2.x && p1.y == p2.y);
 	}
+	public Direction clickTypeToDirection(ClickType clickType) {
+		if (clickType == ClickType.UP) {
+			return Direction.UP
+		} else if (clickType == ClickType.LEFT) {
+			return Direction.LEFT
+		} else if (clickType == ClickType.RIGHT) {
+			return Direction.RIGHT
+		} else if (clickType == ClickType.DOWN) {
+			return Direction.DOWN
+		} else {
+			throw new RuntimeExceptionError("bad click type");
+		}
+	}ddd
+
+	/*private List<Posn> obstacles;
+	private List<Cannon> cannons;
+	private Queue<Arrow> arrows;
+	private List<Part> parts;*/
+
+	public WorldImage makeObstacleImage(List<Posn> obstacles) {
+		int radius = CannonGame.gridSlotWidth;
+		IColor col = javalib.colors.Green;
+		WorldImage obstacleImage = new CircleImage(obstacles.get(0), radius, col);
+		Posn current;
+		for (int i = 1; i < obstacles.size(); i++) {
+			current = obstacles.get(i);
+			obstacleImage = new OverlayImages(obstacleImage,
+								new CircleImage(current, radius, col));
+		}
+		return obstacleImage;
+	}
+	public WorldImage makeCannonImage(List<Cannon> cannons) {
+		WorldImage cannonImage = cannons.get(0).makeImage();
+		for (int i = 1; i < cannons.size(); i++) {
+			cannonImage = new OverlayImages(cannonImage, cannons.get(i).makeImage());
+		}
+		return cannonImage;
+	}
+	public WorldImage makeArrowImage(Queue<Arrow> arrows) {
+		WorldImage arrowImage = arrows.get(0).makeImage();
+		for (int i = 1; i < arrows.size(); i++) {
+			arrowImage = new OverlayImages(arrowImage, arrows.get(i).makeImage());
+		}
+		return arrowImage;
+	}
+	public WorldImage makePartImage(List<Part> parts) {
+		WorldImage partsImage = parts.get(0).makeImage();
+		for (int i = 1; i < parts.size(); i++) {
+			partsImage = new OverlayImages(partsImage, parts.get(i).makeImage());
+		}
+		return partsImage;
+	}
 
 }
 
@@ -177,6 +255,11 @@ class Cannon {
 	public Posn entrance;
 	public Direction entranceDirection;
 	public List<Posn> barrel;
+
+	public WorldImage makeImage() {
+		int radius = 100;
+		return new CircleImage(entrance, radius, javalib.colors.Green);
+	}
 }
 class Part {
 	public PartType type;
@@ -188,6 +271,11 @@ class Part {
 		this.pos = pos;
 		this.direction = direction;
 	}
+
+	public WorldImage makeImage() {
+		int radius = 100;
+		return new CircleImage(pos, radius, javalib.colors.Green);
+	}
 }
 class Arrow {
 	public Posn pos;
@@ -196,5 +284,10 @@ class Arrow {
 	public Arrow (Posn pos, Direction direction) {
 		this.pos = pos;
 		this.direction = direction;
+	}
+
+	public WorldImage makeImage() {
+		int radius = 100;
+		return new CircleImage(pos, radius, javalib.colors.Green);
 	}
 }
